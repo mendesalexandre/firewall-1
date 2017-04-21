@@ -1,0 +1,300 @@
+#!/bin/bash
+# ----------------------------------------------------------------------------- #
+#										#
+# Subject:		iptables firewall script				#
+# Author:		buddylove						#
+# Web:			http://pirate-radio.eu					#
+# Email:		admin@pirate-radio.eu					#
+# Usage:		firewall [start|flush|fallback]				#
+# Requirements:		Check README.md						#
+#										#
+# ----------------------------------------------------------------------------- #
+# --- initialize -------------------------------------------------------------- #
+# variables
+MODPROBE=/sbin/modprobe
+IPTABLES=/sbin/iptables
+SYSCTL=/sbin/sysctl
+NAME=firewall
+IPADRESS="$(ip addr | grep 'state UP' -A2 | tail -n1 | awk '{print $2}' | cut -f1  -d'/')"
+# --- warn-message ------------------------------------------------------------ #
+function warn_message {
+echo
+echo -e "[\e[0;31m WARN \e[0m]\e[0;38m\tCan't find binaries!" >&2
+echo
+exit 1
+	
+}
+test -x $MODPROBE || warn_message;
+test -x $IPTABLES || warn_message;
+test -x $SYSCTL || warn_message;
+set -e
+# ----------------------------------------------------------------------------- #
+# --- flush ------------------------------------------------------------------- #
+function firewall_flush
+{
+echo
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tFlushing tables\e[0m"
+sleep 1
+        # flush rules
+        $IPTABLES -F
+        $IPTABLES -X
+        $IPTABLES -t nat -F
+        $IPTABLES -t nat -X
+        $IPTABLES -t mangle -F
+        $IPTABLES -t mangle -X
+        $IPTABLES -t raw -F
+        $IPTABLES -t raw -X
+        $IPTABLES -t security -F
+        $IPTABLES -t security -X
+        # policies
+        $IPTABLES -P INPUT DROP
+        $IPTABLES -P OUTPUT DROP
+        $IPTABLES -P FORWARD DROP
+echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo
+}
+# ----------------------------------------------------------------------------- #
+# --- fallback ---------------------------------------------------------------- #
+function firewall_fallback
+{
+echo
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tFallback-Mode!\e[0m"
+sleep 1
+        # flush rules
+        $IPTABLES -F
+        $IPTABLES -F -t mangle
+        $IPTABLES -X -t mangle
+        $IPTABLES -F -t nat
+        $IPTABLES -X -t nat
+        $IPTABLES -X
+        # default policy
+        $IPTABLES -P INPUT   DROP
+        $IPTABLES -P FORWARD DROP
+        $IPTABLES -P OUTPUT  DROP
+        # accept everything from loopback
+        $IPTABLES -A INPUT  -i lo -j ACCEPT
+        $IPTABLES -A OUTPUT -o lo -j ACCEPT
+        # accept ICMP packets (ping et.al.)
+        $IPTABLES -A INPUT  -p icmp -j ACCEPT
+        # internet (established and out)
+        $IPTABLES -A OUTPUT -j ACCEPT
+        $IPTABLES -A INPUT  -m state --state ESTABLISHED,RELATED -j ACCEPT
+        # log all the rest before dropping
+        $IPTABLES -A INPUT   -j LOG --log-prefix "IN "
+        $IPTABLES -A OUTPUT  -j LOG --log-prefix "OU "
+        $IPTABLES -A FORWARD -j LOG --log-prefix "FW "
+echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo
+}
+# ----------------------------------------------------------------------------- #
+# --- start ------------------------------------------------------------------- #
+function firewall_start
+{
+echo
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tStarting firewall\e[0m"
+sleep 1
+echo
+# --- load kernel modules ----------------------------------------------------- #
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tLoading kernel modules\e[0m"
+        $MODPROBE ip_conntrack
+        $MODPROBE ip_conntrack_ftp
+        $MODPROBE ip_conntrack_irc
+        $MODPROBE ip_tables
+        $MODPROBE iptable_filter
+#       $MODPROBE iptable_mangle
+        $MODPROBE iptable_nat
+#       $MODPROBE ipt_owner
+        $MODPROBE ipt_limit
+        $MODPROBE ipt_LOG
+#       $MODPROBE ipt_MASQUERADE
+        $MODPROBE ipt_REJECT
+        $MODPROBE ipt_state
+#       $MODPROBE ip_nat_ftp
+#       $MODPROBE ip_conntrack_ftp
+echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+sleep 1
+# --- various kernel initialisations ----------------------------------------- #
+echo
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tInitialising kernel hardening\e[0m"
+        # version 4
+        $SYSCTL -w -q net.ipv4.tcp_rfc1337=1				# drop packets for sockets in time-wait-state
+        $SYSCTL -w -q net.ipv4.tcp_syncookies=1				# prevent syn-floods
+        $SYSCTL -w -q net.ipv4.tcp_timestamps=0				# protect against sequence number wrapping
+        $SYSCTL -w -q net.ipv4.conf.all.rp_filter=1			# reverse path filtering
+        $SYSCTL -w -q net.ipv4.conf.all.log_martians=1			# log martians
+        $SYSCTL -w -q net.ipv4.conf.all.send_redirects=0		# not a router - disables
+        $SYSCTL -w -q net.ipv4.conf.all.accept_redirects=0
+        $SYSCTL -w -q net.ipv4.conf.default.log_martians=1
+        $SYSCTL -w -q net.ipv4.icmp_echo_ignore_broadcasts=1		# prevent smurfs
+        $SYSCTL -w -q net.ipv4.conf.default.send_redirects=0		# not a router - disable
+        $SYSCTL -w -q net.ipv4.conf.all.accept_source_route=0
+        $SYSCTL -w -q net.ipv4.conf.default.accept_redirects=0
+        $SYSCTL -w -q net.ipv4.conf.default.accept_source_route=0
+        # version 6
+#	$SYSCTL -w -q net.ipv6.conf.all.rp_filter=1
+#	$SYSCTL -w -q net.ipv6.conf.default.autoconf=0
+#	$SYSCTL -w -q net.ipv6.conf.all.accept_redirects=0
+#	$SYSCTL -w -q net.ipv6.conf.default.max_addresses=1
+#	$SYSCTL -w -q net.ipv6.conf.default.dad_transmits=0
+#	$SYSCTL -w -q net.ipv6.conf.default.accept_redirects=0
+#	$SYSCTL -w -q net.ipv6.conf.default.accept_ra_pinfo=0
+#	$SYSCTL -w -q net.ipv6.conf.default.accept_ra_defrtr=0
+#	$SYSCTL -w -q net.ipv6.conf.default.accept_ra_rtr_pref=0
+#	$SYSCTL -w -q net.ipv6.conf.default.router_solicitations=0
+# --- socket keep alive ------------------------------------------------------- #
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tInitialising keepalive\e[0m"
+sleep 1
+	$SYSCTL -w -q net.ipv4.tcp_keepalive_time=420			# 7m	after
+	$SYSCTL -w -q net.ipv4.tcp_keepalive_intvl=40			# 40s	interval
+	$SYSCTL -w -q net.ipv4.tcp_keepalive_probes=12			# 12	total
+echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+sleep 1
+# --- policies ---------------------------------------------------------------- #
+echo
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tSetting default policies\e[0m"
+        # default policy
+        $IPTABLES -P INPUT   DROP
+        $IPTABLES -P FORWARD DROP
+        $IPTABLES -P OUTPUT  ACCEPT
+echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+sleep 1
+echo
+echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tInserting chains and appending tables\e[0m"
+# --- create nessecary chains ------------------------------------------------- #
+        $IPTABLES -N UDP-FLOOD
+        $IPTABLES -N TCP-PORTSCAN
+        $IPTABLES -N SUSPICIOUS
+        $IPTABLES -N FLOOD
+        $IPTABLES -N TCP_FLAGS
+        $IPTABLES -N BADFLAGS
+        $IPTABLES -N PREROUTING
+# --- default rules ----------------------------------------------------------- #
+        # accept everything from loopback
+        $IPTABLES -A INPUT  -i lo -j ACCEPT
+        $IPTABLES -A OUTPUT -o lo -j ACCEPT
+        # invalid
+        $IPTABLES -A INPUT -m conntrack --ctstate INVALID -j DROP
+        # icmp
+        $IPTABLES -A INPUT -p icmp --icmp-type 8 -m conntrack --ctstate NEW -j DROP
+        # established
+        $IPTABLES -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# --- bad packet flags --------------------------------------------------------- #
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ACK,FIN FIN             -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ACK,PSH PSH             -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ACK,URG URG             -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags FIN,RST FIN,RST         -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags SYN,FIN SYN,FIN         -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags SYN,RST SYN,RST         -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ALL ALL                 -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ALL NONE                -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ALL FIN,PSH,URG         -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ALL SYN,FIN,PSH,URG     -j BADFLAGS
+        $IPTABLES -A TCP_FLAGS -p tcp --tcp-flags ALL SYN,RST,ACK,FIN,URG -j BADFLAGS
+# --- block smurf attacks ----------------------------------------------------- #
+        $IPTABLES -A INPUT -p icmp -m icmp --icmp-type address-mask-request -j DROP
+        $IPTABLES -A INPUT -p icmp -m icmp --icmp-type timestamp-request -j DROP
+        # drop excessive RST packets to avoid smurf attacks
+        iptables -A INPUT -p tcp -m tcp --tcp-flags RST RST -m limit --limit 2/second --limit-burst 2 -j ACCEPT
+# --- force certain checks ---------------------------------------------------- #
+        # force syn packets check
+        iptables -A INPUT -p tcp ! --syn -m state --state NEW -j DROP
+        # force fragmented packets check
+        iptables -A INPUT -f -j DROP
+# --- protocol-rules ---------------------------------------------------------- #
+        # ssh
+#	$IPTABLES -A INPUT -p tcp --dport 22 -m conntrack --ctstate NEW -j SUSPICIOUS
+        # http(s)
+#	$IPTABLES -A INPUT -m state --state NEW -m tcp -p tcp --dport 80 -j FLOOD
+#	$IPTABLES -A INPUT -m state --state NEW -m tcp -p tcp --dport 443 -j FLOOD
+        # ntp
+#	$IPTABLES -A OUTPUT -p udp --dport 123 -j ACCEPT
+#	$IPTABLES -A INPUT -p udp --sport 123 -j ACCEPT
+        # imap
+#	$IPTABLES -A INPUT -m state --state NEW -p tcp --dport 143 -j ACCEPT
+#	$IPTABLES -A INPUT -m state --state NEW -p tcp --dport 993 -j ACCEPT
+        # pop3
+#	$IPTABLES -A INPUT -m state --state NEW -p tcp --dport 110 -j ACCEPT
+#	$IPTABLES -A INPUT -m state --state NEW -p tcp --dport 995 -j ACCEPT
+        # rsyslog
+#	$IPTABLES -A INPUT -p tcp --dport 514 -m conntrack --ctstate NEW -j ACCEPT
+#	$IPTABLES -A INPUT -p udp --dport 514 -m conntrack --ctstate NEW -j ACCEPT
+        # rsync
+#	$IPTABLES -A INPUT -p tcp --dport 873 -m conntrack --ctstate NEW -j SUSPICIOUS
+	# mldonkey [edonkey2000 client]
+#	$IPTABLES -A FORWARD -p tcp --dport 4662 -j ACCEPT
+#	$IPTABLES -A FORWARD -p udp --dport 4666 -j ACCEPT
+#	$IPTABLES -t nat -A PREROUTING -i pp0 -p tcp --dport 4662 -j DNAT --to-destination $IPADRESS
+#	$IPTABLES -t nat -A PREROUTING -i pp0 -p udp --dport 4666 -j DNAT --to-destination $IPADRESS
+	# mldonkey [edonkey2000 server]
+#	$IPTABLES -A FORWARD -p tcp --dport 4661 -j ACCEPT
+#	$IPTABLES -t nat -A PREROUTING -i pp0 -p tcp --dport 4661 -j DNAT --to-destination $IPADRESS
+	# mldonkey [bittorrent]
+#	$IPTABLES -A FORWARD -p tcp --dport 6882 -j ACCEPT
+#	$IPTABLES -t nat -I PREROUTING -i pp0 -p tcp --dport 6882 -j DNAT --to-destination $IPADRESS
+        # icecast
+#	$IPTABLES -A INPUT -m state --state NEW -m tcp -p tcp --dport 8000 -j SUSPICIOUS
+#	$IPTABLES -A INPUT -m state --state NEW -m tcp -p tcp --dport 8001 -j SUSPICIOUS
+        # tor
+#	$IPTABLES -A INPUT -m state --state NEW -m tcp -p tcp --dport 9001 -j ACCEPT
+#	$IPTABLES -A INPUT -m state --state NEW -m tcp -p tcp --dport 9030 -j ACCEPT
+        # transmission
+#	$IPTABLES -A INPUT -p tcp --dport 9091 -m conntrack --ctstate NEW -j SUSPICIOUS
+        # i2p
+#	$IPTABLES -A INPUT -p tcp --dport 8887 -m conntrack --ctstate NEW -j ACCEPT
+#	$IPTABLES -A INPUT -p udp --dport 8887 -m conntrack --ctstate NEW -j ACCEPT
+# --- almost, last detect portscans ------------------------------------------- #
+        # new but not syn
+        $IPTABLES -A INPUT -p udp -m conntrack --ctstate NEW -j UDP-FLOOD
+        $IPTABLES -A INPUT -p tcp --tcp-flags FIN,SYN,RST,ACK SYN -m conntrack --ctstate NEW -j TCP-PORTSCAN
+# --- end protocol rules -- go fuck yourself ---------------------------------- #
+# --- reject the rest with icmp port unreachable ------------------------------ #
+        $IPTABLES -A INPUT -p tcp -j REJECT --reject-with tcp-reset
+        $IPTABLES -A INPUT -j REJECT --reject-with icmp-proto-unreachable
+# --- logs -------------------------------------------------------------------- #
+        # Synopsis
+        # --rcheck in list? | --update (list) | rttl - check package-ttl | --rsource - save src-addr & port - can't use --rcheck with --update or --set
+        ### UDP-FLOOD ####
+        $IPTABLES -A UDP-FLOOD -p udp -m recent --rcheck --name UDP-FLOOD_LOG -j REJECT --reject-with icmp-port-unreachable
+        $IPTABLES -A UDP-FLOOD -p tcp -m recent --name UDP-FLOOD_LOG --rttl --seconds 300 --hitcount 25 --rsource --update -j LOG --log-prefix "UDP-FLOOD: "
+        ### TCP-PORTSCAN ###
+        $IPTABLES -A TCP-PORTSCAN -p tcp -m recent --name TCP-PORTSCAN_LOG --rcheck --seconds 20 -j REJECT --reject-with tcp-reset
+        $IPTABLES -A TCP-PORTSCAN -p tcp -m recent --name TCP-PORTSCAN_LOG --rttl --seconds 180 --hitcount 25 --rsource --update -j LOG --log-level 7 --log-prefix "TCP-PORTSCAN: "
+        ### SUSPICIOUS ###
+        $IPTABLES -A SUSPICIOUS -m recent --name SUSPICIOUS_LOG --rcheck --seconds 10 --hitcount 3 -j DROP
+        $IPTABLES -A SUSPICIOUS -m recent --name SUSPICIOUS_LOG --rttl --seconds 180 --hitcount 60 --rsource --update -j LOG --log-level 7 --log-prefix "SUSPICIOUS,1 HIT/5 SEC: "
+        $IPTABLES -A SUSPICIOUS -m recent --name SUSPICIOUS_LOG --rcheck --seconds 180 --hitcount 60 -j DROP
+        $IPTABLES -A SUSPICIOUS -m recent --name SUSPICIOUS_LOG --rttl --seconds 180 --hitcount 60 --rsource --update -j LOG --log-level 7 --log-prefix "SUSPICIOUS,20 HITS/MIN: "
+        $IPTABLES -A SUSPICIOUS -m recent --set --name SUSPICIOUS_LOG --rsource -j ACCEPT
+        ### FLOOD ###
+        $IPTABLES -A FLOOD -m recent --name FLOOD_LOG --rcheck --seconds 10 --hitcount 50 -j DROP
+        $IPTABLES -A FLOOD -m recent --name FLOOD_LOG --rttl --seconds 30 --hitcount 150 --rsource --update -j LOG --log-level 7 --log-prefix "FLOOD,5 HITS/SEC: "
+        $IPTABLES -A FLOOD -m recent --name FLOOD_LOG --rcheck --seconds 30 --hitcount 150 -j DROP
+        $IPTABLES -A FLOOD -m recent --name FLOOD_LOG --seconds 30 --hitcount 150 --rttl --rsource --update -j LOG --log-level 7 --log-prefix "FLOOD,300 HITS/MIN: "
+        $IPTABLES -A FLOOD -m recent --set --name FLOOD_LOG --rsource -j ACCEPT
+        ### BADFLAGS ###
+        $IPTABLES -A BADFLAGS -j LOG --log-level 7 --log-prefix "IPT BADFLAGS: "
+        $IPTABLES -A BADFLAGS -j DROP
+echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo
+}
+# --- commandline parsing ----------------------------------------------------- #
+case "$1" in
+        start)
+                firewall_start
+        ;;
+        flush)
+                firewall_flush
+        ;;
+        fallback)
+                firewall_fallback
+        ;;
+        *)
+        N=$NAME
+        echo
+        echo -e "[\e[0;31m WARN \e[0m]\e[0;38m\tUsage: $N {start|flush|fallback}\e[0m"
+        echo
+        exit 1
+        ;;
+esac
+exit 0
+
