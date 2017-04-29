@@ -50,7 +50,7 @@ sleep 1
         $IPTABLES -P INPUT DROP
         $IPTABLES -P OUTPUT DROP
         $IPTABLES -P FORWARD DROP
-echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo -e "[\e[0;32m  OK  \e[0m]\e[0;38m\tDone\e[0m"
 echo
 }
 # ----------------------------------------------------------------------------- #
@@ -83,7 +83,7 @@ sleep 1
         $IPTABLES -A INPUT   -j LOG --log-prefix "IN "
         $IPTABLES -A OUTPUT  -j LOG --log-prefix "OU "
         $IPTABLES -A FORWARD -j LOG --log-prefix "FW "
-echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo -e "[\e[0;32m  OK  \e[0m]\e[0;38m\tDone\e[0m"
 echo
 }
 # ----------------------------------------------------------------------------- #
@@ -111,7 +111,7 @@ echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tLoading kernel modules\e[0m"
         $MODPROBE ipt_state
 #       $MODPROBE ip_nat_ftp
 #       $MODPROBE ip_conntrack_ftp
-echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo -e "[\e[0;32m  OK  \e[0m]\e[0;38m\tDone\e[0m"
 sleep 1
 # --- various kernel initialisations ----------------------------------------- #
 echo
@@ -147,7 +147,7 @@ sleep 1
 	$SYSCTL -w -q net.ipv4.tcp_keepalive_time=420			# 7m	after
 	$SYSCTL -w -q net.ipv4.tcp_keepalive_intvl=40			# 40s	interval
 	$SYSCTL -w -q net.ipv4.tcp_keepalive_probes=12			# 12	total
-echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo -e "[\e[0;32m  OK  \e[0m]\e[0;38m\tDone\e[0m"
 sleep 1
 # --- policies ---------------------------------------------------------------- #
 echo
@@ -156,7 +156,7 @@ echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tSetting default policies\e[0m"
         $IPTABLES -P INPUT   DROP
         $IPTABLES -P FORWARD DROP
         $IPTABLES -P OUTPUT  ACCEPT
-echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo -e "[\e[0;32m  OK  \e[0m]\e[0;38m\tDone\e[0m"
 sleep 1
 echo
 echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tInserting chains and appending tables\e[0m"
@@ -274,7 +274,7 @@ echo -e "[\e[0;33m INFO \e[0m]\e[0;38m\tInserting chains and appending tables\e[
         ### BADFLAGS ###
         $IPTABLES -A BADFLAGS -j LOG --log-level 7 --log-prefix "IPT BADFLAGS: "
         $IPTABLES -A BADFLAGS -j DROP
-echo -e "[\e[0;32m OK \e[0m]\e[0;38m\t\tDone\e[0m"
+echo -e "[\e[0;32m  OK  \e[0m]\e[0;38m\tDone\e[0m"
 echo
 }
 # --- commandline parsing ----------------------------------------------------- #
