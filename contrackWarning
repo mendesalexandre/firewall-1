@@ -1,0 +1,18 @@
+#!/bin/bash
+
+#
+# iptables overflow warning
+#
+
+FILE="/var/log/firewall"
+MIN_SIZE=10
+FILE_SIZE=$(wc -c <"$FILE")
+
+	    while
+		[ $FILE_SIZE -lt $MIN_SIZE ]; do
+
+			sleep 10
+
+		done
+			( xterm -T contrack-overflow-warning -e /usr/bin/joe /var/log/firewall & )
+exit
