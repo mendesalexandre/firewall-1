@@ -1,13 +1,13 @@
 #!/bin/bash
 # ----------------------------------------------------------------------------- #
-#										#
-# Subject:		iptables firewall script				#
-# Author:		buddylove						#
-# Web:			http://pirate-radio.eu					#
-# Email:		admin@pirate-radio.eu					#
-# Usage:		firewall [start|flush|fallback]				#
-# Requirements:		Check README.md						#
-#										#
+#																				#
+# Subject:		iptables firewall script										#
+# Author:		buddylove														#
+# Web:			http://pirate-radio.eu											#
+# Email:		admin@pirate-radio.eu											#
+# Usage:		firewall [start|flush|fallback]									#
+# Requirements:		Check README.md												#
+#																				#
 # ----------------------------------------------------------------------------- #
 # --- initialize -------------------------------------------------------------- #
 # variables

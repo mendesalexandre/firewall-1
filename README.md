@@ -16,8 +16,9 @@ kern.=debug     /var/log/firewall
 and get notified by a 'xterm-popup' when your firewall-log grows.
 
 Important:
+
 Because the cronjob isn't started from a X-Session it is necessary to
-export the DISPLAY (generally DISPLAY=:0).
+export the DISPLAY (generally DISPLAY=:0) in the cron.
 
 
 REQUIREMENTS:
